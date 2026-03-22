@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finiip - AI kế toán</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark">F</div>
+      <div>
+        <h1>Finiip</h1>
+        <p>AI</p>
+      </div>
+      <div class="topbar-note">IIP VIETNAM</div>
+    </header>
+
+    <main class="chat-wrap">
+      <section id="chat" class="chat-list">
+        <article class="message bot">
+          <div class="avatar">F</div>
+          <div class="bubble">
+            <p>Xin chào, mình là <strong>Finiip</strong>.</p>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <footer class="composer">
+      <form id="chatForm" class="composer-form">
+        <div class="composer-main">
+          <textarea id="questionInput" rows="1" placeholder="Nhập câu hỏi kế toán của bạn..."></textarea>
+          <div class="tool-row">
+            <label class="upload-btn" for="excelInput">Tải file Excel</label>
+            <input id="excelInput" type="file" accept=".xlsx,.xls,.csv,.txt,.json" hidden />
+            <span id="fileName" class="file-name">Chưa chọn file</span>
+            <span id="modeBadge" class="mode-badge">Ngữ cảnh nhiều lượt: bật</span>
+          </div>
+        </div>
+        <button type="submit" id="sendBtn">Gửi</button>
+      </form>
+    </footer>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

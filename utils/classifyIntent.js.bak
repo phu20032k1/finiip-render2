@@ -1,0 +1,16 @@
+function classifyIntent(text) {
+  if (/(doc file|doc excel|nhap file|import file|tu file|tu excel|read file|duong dan:|path:|file:).*(csv|txt|json|xls|xlsx)|\.(csv|txt|json|xls|xlsx)\b/.test(text)) return "file_import";
+  if (/(xuat excel|file excel|bao cao excel|tai file excel|export excel)/.test(text)) return "excel_export";
+  if (/(la gi|khai niem|dinh nghia|co nghia la gi)/.test(text)) return "definition";
+  if (/(phan biet|so sanh|khac nhau|khac gi nhau)/.test(text)) return "comparison";
+  if (/(nhat ky chung|so cai|bang can doi so phat sinh|bao cao ket qua kinh doanh|bang can doi ke toan|bctc|phat sinh nhieu nghiep vu|nhieu nghiep vu|danh sach nghiep vu|chuoi nghiep vu|cong no|ton kho|the kho|doi chieu lech|doi tuong)/.test(text)) return "accounting_report";
+  if (/(ket chuyen|xac dinh ket qua kinh doanh|dinh khoan|but toan|nghiep vu|ghi no|ghi co)/.test(text)) return "journal_entry";
+  if (/(tang ben nao|giam ben nao|tinh chat|so du ben nao|binh thuong ben nao)/.test(text) && /(tai khoan|tk\s|\b111\b|\b112\b|\b131\b|\b331\b|\b211\b|\b214\b|\b511\b|\b521\b|\b531\b|\b532\b|\b632\b|\b641\b|\b642\b|\b1331\b|\b3331\b|\b911\b|\b421\b)/.test(text)) return "account_side";
+  if (/(cach tinh|tinh nhu the nao|cong thuc|bao nhieu|tinh giup|ra bao nhieu|moi thang|vat dau vao|vat dau ra|lai gop|loi nhuan|doanh thu thuan|gia von|khau hao)/.test(text)) return "calculation";
+  if (/(dieu kien|khi nao duoc ghi nhan|ghi nhan khi nao)/.test(text)) return "recognition";
+  if (/(tai khoan|tk\s|\b111\b|\b112\b|\b131\b|\b331\b|\b211\b|\b214\b|\b511\b|\b521\b|\b531\b|\b532\b|\b632\b|\b641\b|\b642\b|\b1331\b|\b3331\b|\b911\b|\b421\b)/.test(text)) return "account";
+  if (/(vi du|minh hoa)/.test(text)) return "example";
+  return "general";
+}
+
+module.exports = classifyIntent;

@@ -1,0 +1,10 @@
+LEVEL 8
+- Hỗ trợ import file định khoản sẵn theo 2 mẫu:
+  1) TK Nợ | TK Có | Số tiền
+  2) Tài khoản | Bên | Số tiền (group theo Số CT)
+- Tự đối chiếu lệch và xuất sheet DoiChieuLech
+- Thêm báo cáo phải thu/phải trả theo đối tượng
+- Thêm thẻ kho theo mặt hàng
+- File mẫu:
+  + sample_journal_paired_lv8.csv
+  + sample_journal_lines_lv8.xlsx

@@ -1,0 +1,12 @@
+LEVEL 7 NOTES
+
+1. Hỗ trợ đọc file .xlsx thật bằng openpyxl thông qua scripts/xlsx_helper.py.
+2. Import được các cột phổ biến: ngày, số chứng từ, diễn giải, số tiền.
+3. Khi import từ file, metadata ngày và số CT sẽ đi theo từng bút toán sang Nhật ký chung và Sổ cái.
+4. Xuất báo cáo mặc định ra .xlsx thật; vẫn có thể ép về .xls XML cũ nếu cần.
+5. File mẫu mới:
+   - sample_transactions_lv7.csv
+   - sample_transactions_lv7.xlsx
+6. API:
+   - POST /import-file { filePath, exportExcel, exportFormat }
+   - exportFormat hỗ trợ: xlsx, xls

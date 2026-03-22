@@ -1,0 +1,6 @@
+LEVEL 9
+- Ho tro so luong va don gia trong Input, NhatKyChung va TheKho
+- Them so chi tiet cong no tung doi tuong: sheet CTietPhaiThu, CTietPhaiTra
+- The kho theo doi ca so luong va gia tri sau moi giao dich
+- File mau: sample_transactions_lv9.csv, sample_transactions_lv9.xlsx
+- Khi import file co cot So luong / Don gia / Doi tuong / Mat hang, he thong se dua vao meta va bao cao chi tiet

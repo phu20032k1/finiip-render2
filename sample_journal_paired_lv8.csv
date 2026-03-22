@@ -1,0 +1,5 @@
+Ngày,Số CT,Diễn giải,TK Nợ,TK Có,Số tiền,Đối tượng,Mặt hàng
+2026-03-01,PX001,Mua hàng nhập kho của NCC A,156,331,100000000,NCC A,Áo sơ mi
+2026-03-02,BH001,Bán hàng thu tiền mặt KH Lan,111,511,220000000,KH Lan,Áo sơ mi
+2026-03-02,BH001,Thuế GTGT đầu ra KH Lan,111,3331,22000000,KH Lan,Áo sơ mi
+2026-03-02,BH001,Giá vốn hàng bán Áo sơ mi,632,156,130000000,KH Lan,Áo sơ mi

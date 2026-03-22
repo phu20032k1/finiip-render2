@@ -1,0 +1,31 @@
+LEVEL 5 - NHỮNG GÌ ĐÃ THÊM
+
+1. Xuất Excel
+- Nhận câu hỏi có từ khóa: xuat excel, file excel, export excel.
+- Sinh file .xls nhiều sheet trong thư mục generated_reports/.
+- Các sheet hiện có:
+  + NghiepVuGoc
+  + NhatKyChung
+  + SoCai
+  + CanDoiPS
+  + KQKD_SoBo
+  + BCDKT_SoBo
+
+2. Nhập danh sách nghiệp vụ nhiều dòng
+- Có thể nhập cách nhau bằng xuống dòng, dấu chấm phẩy hoặc ký tự |.
+
+3. Báo cáo tài chính sơ bộ
+- Báo cáo kết quả kinh doanh sơ bộ.
+- Bảng cân đối kế toán sơ bộ.
+- Có thêm dòng chênh lệch kiểm tra cân đối để người dùng biết dữ liệu còn thiếu hoặc chưa khớp.
+
+4. File mới / file đã sửa
+- services/excelExportService.js (mới)
+- services/reportingService.js (nâng cấp lớn)
+- services/answerQuestion.js
+- utils/classifyIntent.js
+- server.js
+- testEngine.js
+
+5. Gợi ý câu test
+- xuat excel cho danh sach nghiep vu: mua hang chua vat 100 trieu vat 10 chua thanh toan; ban hang 200 trieu vat 10 thu tien mat gia von 120 trieu; thu no khach hang qua ngan hang 80 trieu; trich khau hao tai san co dinh 24 trieu; ket chuyen doanh thu 200 trieu; ket chuyen gia von 120 trieu; ket chuyen chi phi quan ly 24 trieu; ket chuyen loi nhuan 56 trieu

@@ -1,0 +1,32 @@
+LEVEL 6 - TINH NANG MO RONG
+
+1. NHAP FILE NGHIEP VU
+- Ho tro doc file theo duong dan noi bo:
+  + .csv
+  + .txt
+  + .json
+  + .xls / .xlsx dang SpreadsheetML XML (file Excel 2003 XML)
+- Co the goi qua /ask:
+  doc file excel path: /duong/dan/file.xls va xuat excel
+- Hoac qua API:
+  POST /import-file
+  body: { "filePath": "/duong/dan/file.csv", "exportExcel": true }
+
+2. BAO CAO BO SUNG
+- Cong no phai thu
+- Cong no phai tra
+- Ton kho
+- Da them vao file Excel cac sheet:
+  Input, NhatKyChung, SoCai, CanDoiPS, KQKD, BangCDKT, CongNoPhaiThu, CongNoPhaiTra, TonKho
+
+3. DINH DANG FILE NHAP GOI Y
+CSV/TXT:
+nghiep vu
+mua hang chua vat 100 trieu vat 10 chua thanh toan
+ban hang 200 trieu vat 10 thu tien mat gia von 120 trieu
+
+JSON:
+[
+  { "nghiep_vu": "mua hang chua vat 100 trieu vat 10 chua thanh toan" },
+  { "nghiep_vu": "ban hang 200 trieu vat 10 thu tien mat gia von 120 trieu" }
+]

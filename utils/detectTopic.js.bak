@@ -1,0 +1,65 @@
+const TOPICS = [
+  { key: "tai_san_co_dinh", keywords: ["tai san co dinh", "tscd"] },
+  { key: "khau_hao", keywords: ["khau hao"] },
+  { key: "doanh_thu", keywords: ["doanh thu"] },
+  { key: "doanh_thu_thuan", keywords: ["doanh thu thuan"] },
+  { key: "gia_von", keywords: ["gia von", "ton dau", "ton cuoi", "nhap trong ky"] },
+  { key: "chi_phi", keywords: ["chi phi"] },
+  { key: "loi_nhuan_gop", keywords: ["loi nhuan gop", "lai gop", "gross profit"] },
+  { key: "loi_nhuan_truoc_thue", keywords: ["loi nhuan truoc thue"] },
+  { key: "loi_nhuan_rong", keywords: ["loi nhuan rong", "loi nhuan sau thue", "net profit"] },
+  { key: "vat_dau_vao", keywords: ["vat dau vao", "thue gtgt dau vao"] },
+  { key: "vat_dau_ra", keywords: ["vat dau ra", "thue gtgt dau ra"] },
+  { key: "thue_gtgt", keywords: ["thue gtgt", "vat"] },
+  { key: "hang_ton_kho", keywords: ["hang ton kho"] },
+  { key: "phai_thu", keywords: ["phai thu"] },
+  { key: "phai_tra", keywords: ["phai tra"] },
+  { key: "no_phai_tra", keywords: ["no phai tra"] },
+  { key: "von_chu_so_huu", keywords: ["von chu so huu"] },
+  { key: "cong_cu_dung_cu", keywords: ["cong cu dung cu", "ccdc"] },
+  { key: "tk_111", keywords: ["tk 111", "tai khoan 111"] },
+  { key: "tk_112", keywords: ["tk 112", "tai khoan 112"] },
+  { key: "tk_131", keywords: ["tk 131", "tai khoan 131"] },
+  { key: "tk_331", keywords: ["tk 331", "tai khoan 331"] },
+  { key: "tk_211", keywords: ["tk 211", "tai khoan 211"] },
+  { key: "tk_214", keywords: ["tk 214", "tai khoan 214"] },
+  { key: "tk_3331", keywords: ["tk 3331", "tai khoan 3331"] },
+  { key: "tk_511", keywords: ["tk 511", "tai khoan 511"] },
+  { key: "tk_632", keywords: ["tk 632", "tai khoan 632"] },
+  { key: "tk_641", keywords: ["tk 641", "tai khoan 641"] },
+  { key: "tk_642", keywords: ["tk 642", "tai khoan 642"] }
+];
+
+const ACCOUNT_PATTERN = /\b(?:tk\s*)?(111|112|131|1331|152|153|156|211|214|331|3331|334|511|632|641|642)\b/;
+
+function detectTopic(text) {
+  const accountMatch = text.match(ACCOUNT_PATTERN);
+  if (accountMatch) return `tk_${accountMatch[1]}`;
+
+  let bestTopic = "unknown";
+  let bestScore = 0;
+
+  for (const topic of TOPICS) {
+    const matched = topic.keywords.filter(keyword => text.includes(keyword));
+    const score = matched.length;
+    const specificity = matched.reduce((sum, keyword) => sum + keyword.length, 0);
+    const bestSpecificity = (TOPICS.find(t => t.key === bestTopic)?.keywords || []).filter(keyword => text.includes(keyword)).reduce((sum, keyword) => sum + keyword.length, 0);
+    if (score > bestScore || (score === bestScore && specificity > bestSpecificity)) {
+      bestScore = score;
+      bestTopic = topic.key;
+    }
+  }
+
+  return bestTopic;
+}
+
+function suggestTopics(text) {
+  return TOPICS
+    .map(topic => ({ key: topic.key, score: topic.keywords.reduce((sum, keyword) => sum + (text.includes(keyword) ? 1 : 0), 0) }))
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
+    .map(item => item.key);
+}
+
+module.exports = { detectTopic, suggestTopics };

@@ -1,0 +1,369 @@
+const path = require('path');
+const normalizeText = require('../utils/normalize');
+const applySynonyms = require('../utils/synonyms');
+const classifyIntent = require('../utils/classifyIntent');
+const { detectTopic, suggestTopics } = require('../utils/detectTopic');
+const knowledge = require('../knowledge/accountingKnowledge');
+const extractAccountingEntities = require('../utils/extractAccountingEntities');
+const { stepFormatter, formatCurrency } = require('../utils/stepFormatter');
+const { buildJournalEntry, describeAccount } = require('./journalService');
+const { buildAccountingReport } = require('./reportingService');
+const { importTransactionsFromFile, extractPathFromText } = require('./importService');
+
+function extractVatRate(text, entities) {
+  return entities.vat_rate || 0.1;
+}
+
+function buildComparisonAnswer(text) {
+  if (text.includes('loi nhuan gop') && text.includes('loi nhuan rong')) {
+    return {
+      type: 'comparison',
+      topic: 'loi_nhuan_gop_vs_loi_nhuan_rong',
+      answer: `📘 Phân biệt lợi nhuận gộp và lợi nhuận ròng\n- Lợi nhuận gộp = Doanh thu thuần - Giá vốn hàng bán\n- Lợi nhuận ròng = Doanh thu - Giá vốn - Chi phí - Thuế\n- Lợi nhuận gộp phản ánh hiệu quả bán hàng cốt lõi.\n- Lợi nhuận ròng phản ánh phần lợi nhuận cuối cùng doanh nghiệp còn giữ lại.`
+    };
+  }
+
+  return {
+    type: 'comparison',
+    topic: 'unknown',
+    answer: 'Mình chưa có cặp so sánh này trong kho tri thức.'
+  };
+}
+
+function pick(entities, key, fallbackIndex = null) {
+  if (entities[key] !== undefined) return entities[key];
+  if (fallbackIndex !== null && entities.all_numbers[fallbackIndex] !== undefined) return entities.all_numbers[fallbackIndex];
+  return null;
+}
+
+function missingFieldsMessage(labelMap, requiredKeys, entities) {
+  const missing = requiredKeys.filter(key => pick(entities, key) === null).map(key => labelMap[key]);
+  if (!missing.length) return '';
+  return `Bạn còn thiếu: ${missing.join(', ')}.`;
+}
+
+function calculateByTopic(topic, text) {
+  const entities = extractAccountingEntities(text);
+  const labels = {
+    doanh_thu: 'doanh thu',
+    gia_von: 'giá vốn',
+    chi_phi: 'chi phí',
+    thue: 'thuế',
+    giam_tru: 'giảm trừ doanh thu',
+    ton_dau_ky: 'tồn đầu kỳ',
+    nhap_trong_ky: 'nhập trong kỳ',
+    ton_cuoi_ky: 'tồn cuối kỳ',
+    nguyen_gia: 'nguyên giá',
+    so_nam: 'số năm sử dụng',
+    gia_chua_vat: 'giá chưa VAT'
+  };
+
+  if (topic === 'khau_hao') {
+    const nguyenGia = pick(entities, 'nguyen_gia', 0);
+    const soNam = pick(entities, 'so_nam', 1);
+    if (nguyenGia !== null && soNam !== null) {
+      const khauHaoNam = nguyenGia / soNam;
+      const khauHaoThang = khauHaoNam / 12;
+      return stepFormatter({
+        title: 'Tính khấu hao',
+        question: text,
+        formula: 'Khấu hao năm = Nguyên giá / Số năm sử dụng; Khấu hao tháng = Khấu hao năm / 12',
+        inputs: [
+          { label: 'Nguyên giá', value: `${formatCurrency(nguyenGia)} đồng` },
+          { label: 'Số năm sử dụng', value: `${soNam} năm` }
+        ],
+        steps: [
+          `Khấu hao năm = ${formatCurrency(nguyenGia)} / ${soNam} = ${formatCurrency(khauHaoNam)} đồng`,
+          `Khấu hao tháng = ${formatCurrency(khauHaoNam)} / 12 = ${formatCurrency(khauHaoThang)} đồng`
+        ],
+        result: `Khấu hao năm = ${formatCurrency(khauHaoNam)} đồng; khấu hao tháng = ${formatCurrency(khauHaoThang)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: 'Tính khấu hao',
+      formula: 'Khấu hao năm = Nguyên giá / Số năm sử dụng',
+      note: missingFieldsMessage(labels, ['nguyen_gia', 'so_nam'], entities) || 'Bạn cần ít nhất 2 số: nguyên giá và số năm sử dụng.'
+    });
+  }
+
+  if (topic === 'loi_nhuan_gop') {
+    const doanhThu = pick(entities, 'doanh_thu', 0);
+    const giaVon = pick(entities, 'gia_von', 1);
+    if (doanhThu !== null && giaVon !== null) {
+      const loiNhuanGop = doanhThu - giaVon;
+      return stepFormatter({
+        title: 'Tính lợi nhuận gộp',
+        question: text,
+        formula: 'Lợi nhuận gộp = Doanh thu thuần - Giá vốn',
+        inputs: [
+          { label: 'Doanh thu', value: `${formatCurrency(doanhThu)} đồng` },
+          { label: 'Giá vốn', value: `${formatCurrency(giaVon)} đồng` }
+        ],
+        steps: [
+          `Lợi nhuận gộp = ${formatCurrency(doanhThu)} - ${formatCurrency(giaVon)}`,
+          `Lợi nhuận gộp = ${formatCurrency(loiNhuanGop)} đồng`
+        ],
+        result: `Lợi nhuận gộp = ${formatCurrency(loiNhuanGop)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: 'Tính lợi nhuận gộp',
+      formula: 'Lợi nhuận gộp = Doanh thu thuần - Giá vốn',
+      note: missingFieldsMessage(labels, ['doanh_thu', 'gia_von'], entities) || 'Bạn cần ít nhất 2 số: doanh thu và giá vốn.'
+    });
+  }
+
+  if (topic === 'loi_nhuan_truoc_thue') {
+    const doanhThu = pick(entities, 'doanh_thu', 0);
+    const giaVon = pick(entities, 'gia_von', 1);
+    const chiPhi = pick(entities, 'chi_phi', 2);
+    if (doanhThu !== null && giaVon !== null && chiPhi !== null) {
+      const value = doanhThu - giaVon - chiPhi;
+      return stepFormatter({
+        title: 'Tính lợi nhuận trước thuế',
+        question: text,
+        formula: 'Lợi nhuận trước thuế = Doanh thu - Giá vốn - Chi phí',
+        inputs: [
+          { label: 'Doanh thu', value: `${formatCurrency(doanhThu)} đồng` },
+          { label: 'Giá vốn', value: `${formatCurrency(giaVon)} đồng` },
+          { label: 'Chi phí', value: `${formatCurrency(chiPhi)} đồng` }
+        ],
+        steps: [
+          `Lợi nhuận trước thuế = ${formatCurrency(doanhThu)} - ${formatCurrency(giaVon)} - ${formatCurrency(chiPhi)}`,
+          `Lợi nhuận trước thuế = ${formatCurrency(value)} đồng`
+        ],
+        result: `Lợi nhuận trước thuế = ${formatCurrency(value)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: 'Tính lợi nhuận trước thuế',
+      formula: 'Lợi nhuận trước thuế = Doanh thu - Giá vốn - Chi phí',
+      note: missingFieldsMessage(labels, ['doanh_thu', 'gia_von', 'chi_phi'], entities) || 'Bạn cần ít nhất 3 số: doanh thu, giá vốn, chi phí.'
+    });
+  }
+
+  if (topic === 'loi_nhuan_rong') {
+    const doanhThu = pick(entities, 'doanh_thu', 0);
+    const giaVon = pick(entities, 'gia_von', 1);
+    const chiPhi = pick(entities, 'chi_phi', 2);
+    const thue = pick(entities, 'thue', 3);
+    if (doanhThu !== null && giaVon !== null && chiPhi !== null && thue !== null) {
+      const value = doanhThu - giaVon - chiPhi - thue;
+      return stepFormatter({
+        title: 'Tính lợi nhuận ròng',
+        question: text,
+        formula: 'Lợi nhuận ròng = Doanh thu - Giá vốn - Chi phí - Thuế',
+        inputs: [
+          { label: 'Doanh thu', value: `${formatCurrency(doanhThu)} đồng` },
+          { label: 'Giá vốn', value: `${formatCurrency(giaVon)} đồng` },
+          { label: 'Chi phí', value: `${formatCurrency(chiPhi)} đồng` },
+          { label: 'Thuế', value: `${formatCurrency(thue)} đồng` }
+        ],
+        steps: [
+          `Lợi nhuận ròng = ${formatCurrency(doanhThu)} - ${formatCurrency(giaVon)} - ${formatCurrency(chiPhi)} - ${formatCurrency(thue)}`,
+          `Lợi nhuận ròng = ${formatCurrency(value)} đồng`
+        ],
+        result: `Lợi nhuận ròng = ${formatCurrency(value)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: 'Tính lợi nhuận ròng',
+      formula: 'Lợi nhuận ròng = Doanh thu - Giá vốn - Chi phí - Thuế',
+      note: missingFieldsMessage(labels, ['doanh_thu', 'gia_von', 'chi_phi', 'thue'], entities) || 'Bạn cần ít nhất 4 số: doanh thu, giá vốn, chi phí, thuế.'
+    });
+  }
+
+  if (topic === 'doanh_thu_thuan') {
+    const doanhThu = pick(entities, 'doanh_thu', 0);
+    const giamTru = pick(entities, 'giam_tru', 1);
+    if (doanhThu !== null && giamTru !== null) {
+      const value = doanhThu - giamTru;
+      return stepFormatter({
+        title: 'Tính doanh thu thuần',
+        question: text,
+        formula: 'Doanh thu thuần = Doanh thu bán hàng - Các khoản giảm trừ',
+        inputs: [
+          { label: 'Doanh thu bán hàng', value: `${formatCurrency(doanhThu)} đồng` },
+          { label: 'Các khoản giảm trừ', value: `${formatCurrency(giamTru)} đồng` }
+        ],
+        steps: [
+          `Doanh thu thuần = ${formatCurrency(doanhThu)} - ${formatCurrency(giamTru)}`,
+          `Doanh thu thuần = ${formatCurrency(value)} đồng`
+        ],
+        result: `Doanh thu thuần = ${formatCurrency(value)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: 'Tính doanh thu thuần',
+      formula: 'Doanh thu thuần = Doanh thu bán hàng - Các khoản giảm trừ',
+      note: missingFieldsMessage(labels, ['doanh_thu', 'giam_tru'], entities) || 'Bạn cần ít nhất 2 số: doanh thu bán hàng và giảm trừ doanh thu.'
+    });
+  }
+
+  if (topic === 'gia_von') {
+    const tonDauKy = pick(entities, 'ton_dau_ky', 0);
+    const nhapTrongKy = pick(entities, 'nhap_trong_ky', 1);
+    const tonCuoiKy = pick(entities, 'ton_cuoi_ky', 2) || 0;
+    if (tonDauKy !== null && nhapTrongKy !== null) {
+      const value = tonDauKy + nhapTrongKy - tonCuoiKy;
+      return stepFormatter({
+        title: 'Tính giá vốn hàng bán',
+        question: text,
+        formula: 'Giá vốn = Tồn đầu kỳ + Nhập trong kỳ - Tồn cuối kỳ',
+        inputs: [
+          { label: 'Tồn đầu kỳ', value: `${formatCurrency(tonDauKy)} đồng` },
+          { label: 'Nhập trong kỳ', value: `${formatCurrency(nhapTrongKy)} đồng` },
+          { label: 'Tồn cuối kỳ', value: `${formatCurrency(tonCuoiKy)} đồng` }
+        ],
+        steps: [
+          `Giá vốn = ${formatCurrency(tonDauKy)} + ${formatCurrency(nhapTrongKy)} - ${formatCurrency(tonCuoiKy)}`,
+          `Giá vốn = ${formatCurrency(value)} đồng`
+        ],
+        result: `Giá vốn hàng bán = ${formatCurrency(value)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: 'Tính giá vốn hàng bán',
+      formula: 'Giá vốn = Tồn đầu kỳ + Nhập trong kỳ - Tồn cuối kỳ',
+      note: missingFieldsMessage(labels, ['ton_dau_ky', 'nhap_trong_ky'], entities) || 'Nên cung cấp 3 số: tồn đầu kỳ, nhập trong kỳ, tồn cuối kỳ.'
+    });
+  }
+
+  if (topic === 'vat_dau_ra' || topic === 'vat_dau_vao') {
+    const giaChuaVat = pick(entities, 'gia_chua_vat', 0) ?? pick(entities, 'doanh_thu', 0);
+    const rate = extractVatRate(text, entities);
+    if (giaChuaVat !== null) {
+      const value = giaChuaVat * rate;
+      return stepFormatter({
+        title: topic === 'vat_dau_ra' ? 'Tính VAT đầu ra' : 'Tính VAT đầu vào',
+        question: text,
+        formula: 'VAT = Giá chưa VAT × Thuế suất',
+        inputs: [
+          { label: 'Giá chưa VAT', value: `${formatCurrency(giaChuaVat)} đồng` },
+          { label: 'Thuế suất', value: `${rate * 100}%` }
+        ],
+        steps: [
+          `VAT = ${formatCurrency(giaChuaVat)} × ${rate * 100}%`,
+          `VAT = ${formatCurrency(value)} đồng`
+        ],
+        result: `VAT = ${formatCurrency(value)} đồng`
+      });
+    }
+    return stepFormatter({
+      title: topic === 'vat_dau_ra' ? 'Tính VAT đầu ra' : 'Tính VAT đầu vào',
+      formula: 'VAT = Giá chưa VAT × Thuế suất',
+      note: 'Bạn nên cung cấp giá chưa VAT. Nếu không ghi thuế suất, hệ thống mặc định 10%.'
+    });
+  }
+
+  return null;
+}
+
+function buildAnswerByIntent(intent, topic, topicData, text) {
+  if (intent === 'calculation') {
+    const calculated = calculateByTopic(topic, text);
+    if (calculated) return calculated;
+    return `📘 ${topicData.title}\n- Định nghĩa: ${topicData.definition || 'Chưa có định nghĩa.'}\n- Giải thích: ${topicData.explanation || 'Chưa có giải thích.'}\n- Công thức: ${topicData.calculation || 'Hiện chưa có công thức riêng cho chủ đề này.'}\n- Ví dụ: ${topicData.example || 'Chưa có ví dụ.'}`;
+  }
+
+  switch (intent) {
+    case 'definition':
+      return `📘 ${topicData.title}\n- Định nghĩa: ${topicData.definition || ''}\n- Giải thích: ${topicData.explanation || ''}\n- Ví dụ: ${topicData.example || ''}\n- Ghi chú: ${topicData.note || ''}`;
+    case 'recognition':
+      return `📘 ${topicData.title}\n- Định nghĩa: ${topicData.definition || ''}\n- Giải thích: ${topicData.explanation || ''}\n- Điều kiện ghi nhận: ${topicData.recognition || 'Hiện chưa có điều kiện ghi nhận riêng.'}`;
+    case 'example':
+      return `📘 ${topicData.title}\n- Định nghĩa: ${topicData.definition || ''}\n- Ví dụ: ${topicData.example || 'Hiện chưa có ví dụ riêng.'}`;
+    case 'account':
+      return `📘 ${topicData.title}\n- Định nghĩa: ${topicData.definition || ''}\n- Giải thích: ${topicData.explanation || ''}\n- Ghi chú: ${topicData.note || ''}`;
+    default:
+      return `📘 ${topicData.title}\n- Định nghĩa: ${topicData.definition || ''}\n- Giải thích: ${topicData.explanation || ''}\n- Ví dụ: ${topicData.example || ''}\n- Ghi chú: ${topicData.note || ''}`;
+  }
+}
+
+function answerQuestion(question) {
+  const normalized = normalizeText(question);
+  const expanded = applySynonyms(normalized);
+  const wantsExcel = /(xuat excel|file excel|bao cao excel|export excel|\.xls|\.xlsx)/.test(expanded) || /(\.xls|\.xlsx)/i.test(question);
+  const exportFormat = /(\.xls|dinh dang xls|file xls)/.test(expanded) ? 'xls' : 'xlsx';
+  const intent = classifyIntent(expanded);
+
+  if (intent === 'comparison') return buildComparisonAnswer(expanded);
+  if (intent === 'file_import') {
+    try {
+      const filePath = extractPathFromText(question) || extractPathFromText(expanded);
+      const imported = importTransactionsFromFile(filePath);
+      const report = imported.importMode !== 'transactions'
+        ? buildAccountingReport('', { exportExcel: wantsExcel, exportFormat, records: imported.records, entries: imported.templateJournal.entries, importIssues: imported.templateJournal.issues })
+        : buildAccountingReport(`danh sach nghiep vu:
+${imported.transactions.join('\n')}`, { exportExcel: wantsExcel, exportFormat, records: imported.records });
+      const modeLabel = imported.importMode === 'transactions' ? 'mô tả nghiệp vụ' : (imported.importMode === 'paired' ? 'định khoản cặp Nợ/Có' : 'dòng nhật ký Nợ/Có');
+      return {
+        type: intent,
+        topic: 'file_import',
+        answer: `Đã nhập file ${imported.fileName} theo chế độ ${modeLabel} với ${imported.count} dòng dữ liệu.
+
+${report.answer}`,
+        importSummary: imported,
+        exportPath: report.exportPath,
+        exportFilename: report.exportPath ? path.basename(report.exportPath) : null,
+        discrepancies: report.discrepancies || []
+      };
+    } catch (error) {
+      return {
+        type: intent,
+        topic: 'file_import',
+        answer: `Mình đã nhận ra bạn muốn đọc file, nhưng ${error.message}`
+      };
+    }
+  }
+  if (intent === 'excel_export') {
+    const exportFormat = /(\.xls\b|dinh dang xls|file xls)/.test(expanded) ? 'xls' : 'xlsx';
+    const report = buildAccountingReport(expanded, { exportExcel: true, exportFormat });
+    return {
+      type: intent,
+      topic: 'excel_export',
+      answer: report.answer,
+      exportPath: report.exportPath,
+      exportFilename: report.exportPath ? path.basename(report.exportPath) : null
+    };
+  }
+  if (intent === 'accounting_report') {
+    const report = buildAccountingReport(expanded, { exportExcel: false });
+    return { type: intent, topic: 'accounting_report', answer: report.answer, statements: report.statements, subledgers: report.subledgers, discrepancies: report.discrepancies };
+  }
+  if (intent === 'journal_entry') {
+    return { type: intent, topic: 'journal_entry', answer: buildJournalEntry(expanded) };
+  }
+  if (intent === 'account_side') {
+    const answer = describeAccount(expanded);
+    return { type: intent, topic: 'account_side', answer: answer || 'Mình chưa xác định được tài khoản bạn đang hỏi bên Nợ/Có.' };
+  }
+
+  const topic = detectTopic(expanded);
+  if (topic === 'unknown') {
+    const suggestions = suggestTopics(expanded);
+    return {
+      type: intent,
+      topic: 'unknown',
+      answer: "Mình chưa nhận diện chắc chắn được chủ đề. Bạn có thể hỏi như: 'Máy 120 triệu dùng 5 năm, khấu hao tháng bao nhiêu?', 'Giá chưa VAT 200 triệu VAT 10% thì VAT đầu ra bao nhiêu?', 'Mua hàng chưa thanh toán 120 triệu định khoản thế nào?', '111 tăng bên nào?', 'Xuất Excel cho danh sách nghiệp vụ này'.",
+      suggestions
+    };
+  }
+
+  const topicData = knowledge[topic];
+  if (!topicData) {
+    return {
+      type: intent,
+      topic,
+      answer: 'Mình đã nhận diện được chủ đề nhưng chưa có dữ liệu tri thức cho chủ đề này.'
+    };
+  }
+
+  return {
+    type: intent,
+    topic,
+    answer: buildAnswerByIntent(intent, topic, topicData, expanded)
+  };
+}
+
+module.exports = answerQuestion;
